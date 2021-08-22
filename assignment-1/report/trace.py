@@ -86,7 +86,14 @@ for i in range(1,max_hop):
 # Plot the graph
 garr=[]
 for i in range(total_hops):
-    garr+=[(finalarr[i][0][1]+finalarr[i][1][1]+finalarr[i][2][1])/3]
+    for j in range(3):
+        if finalarr[i][j][1]==0:
+            finalarr[i][j][1]=9999
+for i in range(total_hops):
+    if finalarr[i][0][1]==finalarr[i][1][1]==finalarr[i][2][1]==9999:
+        garr+=[0]
+    else:
+        garr+=[min(finalarr[i][0][1],min(finalarr[i][1][1],finalarr[i][2][1]))]
 plt.plot([i for i in range(total_hops)],garr,marker='o' )
 plt.xlabel('Hops')
 plt.ylabel('Average RTT (ms)')
