@@ -11,7 +11,7 @@
 \maketitle
 \question*{Networking Tools}
     \begin{alphaparts}
-        \questionpart IP address of the machine changes with different routers. Each router assigns a private IP address to device which can be different. 
+        \questionpart IP address of the machine changes with different routers. Each router assigns a private IP address to each device to recognize it between systems connected to network, which can be different. 
             \begin{enumerate}
                 \item IP Address with Airtel router: 192.168.1.101
                 \item IP Address with BSNL router: 192.168.1.12 
@@ -23,6 +23,8 @@
                 \item IP address of www.facebook.com with google dns (8.8.8.8) : 157.240.1.35  
                 \item IP address of www.google.com with multiplay.bsnl.in (218.248.114.1) : 216.58.221.46 
                 \item IP address of www.facebook.com with multiplay.bsnl.in (218.248.114.1) : 31.13.79.35 
+                \item IP address of www.google.com with cisco OpenDNS (208.67.222.222) : 142.250.66.14 
+                \item IP address of www.facebook.com with cisco OpenDNS (208.67.222.222) : 31.13.79.35 
             \end{enumerate}
 
         \questionpart TTL limits the number of hops a packet can cross. Lower values gives time to live exceeded error as the packet can not reach the destination in limited hops. Received packets have fixed TTL values as it is the response from server. Actual packet size include 8 bytes for ICMP packet header and 20 bytes for IP header. 
@@ -31,6 +33,22 @@
                 \item Max size for www.google.com: 68 bytes (96 bytes total)
                 \item Max size for www.facebook.com: 1472 bytes (1500 bytes total)
             \end{enumerate}
+            
+        Pinging with different values of TTL gives information about the path taken by packet to the destination. Packets with less TTL values expire in the transit exposing the intermediate IP addresses. Ping to www.iitd.ac.in expire till TTL=18. It requires 19 hops to reach the destination.
+        \begin{figure}[hbt!]
+        \centering
+        \includegraphics[width=10cm]{assignment-1/report/smallping.png}
+        \caption{TTL = 18 packet expires before reaching destination}
+        \label{fig:galaxy}
+        \end{figure}
+        
+        \begin{figure}[hbt!]
+        \centering
+        \includegraphics[width=10cm]{assignment-1/report/largeping.png}
+        \caption{TTL = 19 packet reaches destination}
+        \label{fig:galaxy}
+        \end{figure}
+        \pagebreak
         \questionpart
         Observations: 
             \begin{enumerate} 
@@ -83,7 +101,8 @@ Corresponding wire-shark snapshot is attached with the zip file.
     \end{figure}
 
  \end{alphaparts}
-   
+   \pagebreak
+    
 \question*{Implement Traceroute using Ping}
 Traceroute involves following steps:
 
@@ -98,13 +117,37 @@ Traceroute involves following steps:
         \begin{figure}[hbt!]
     \centering
     \includegraphics[width=18cm]{assignment-1/report/graph.png}
-    \caption{traceroute command (left) vs custom code (right)}
+    \caption{traceroute command for iitd.ac.in (left) vs custom code (right)}
     \label{fig:galaxy}
     \end{figure}
         \begin{figure}[hbt!]
     \centering
     \includegraphics[width=10cm]{assignment-1/report/trace-iitd.ac.in.png}
-    \caption{RTT vs Hops graph (servers that did not respond to ping are marked with 0 RTT)}
+    \caption{RTT vs Hops graph for iitd.ac.in (servers that did not respond to ping are marked with 0 RTT)}
+    \label{fig:galaxy}
+    \end{figure}
+            \begin{figure}[hbt!]
+    \centering
+    \includegraphics[width=18cm]{assignment-1/report/googleping.png}
+    \caption{traceroute command for google.com (left) vs custom code (right)}
+    \label{fig:galaxy}
+    \end{figure}
+        \begin{figure}[hbt!]
+    \centering
+    \includegraphics[width=6cm]{assignment-1/report/trace-google.com.png}
+    \caption{RTT vs Hops graph for google.com (servers that did not respond to ping are marked with 0 RTT)}
+    \label{fig:galaxy}
+    \end{figure}
+                \begin{figure}[hbt!]
+    \centering
+    \includegraphics[width=18cm]{assignment-1/report/utah.png}
+    \caption{traceroute command for utah.edu (left) vs custom code (right)}
+    \label{fig:galaxy}
+    \end{figure}
+        \begin{figure}[hbt!]
+    \centering
+    \includegraphics[width=7cm]{assignment-1/report/trace-utah.edu.png}
+    \caption{RTT vs Hops graph for utah.edu (servers that did not respond to ping are marked with 0 RTT)}
     \label{fig:galaxy}
     \end{figure}
     \pagebreak
@@ -112,8 +155,8 @@ Traceroute involves following steps:
     \\
     Complexity vs Efficiency trade-off:
     \begin{enumerate}
-        \item RTT of some intermediate servers is more noisy due to variation of load in routers. This can be removed by sending multiple packets across each iteration and taking average.
-        \item Currently default is average of 3 path each sending 2 packets. This can be changed in the program. Sending 3 packets in each iterations severely affects the complexity causing time to shoot up to 2 minutes
+        \item RTT of some intermediate servers is more noisy due to variation of load in routers. This can be removed by sending multiple packets across each iteration and taking minimum.
+        \item Currently default is minimum of 3 path each sending 2 packets. This can be changed in the program. Sending 3 packets in each iterations severely affects the complexity causing time to shoot up to 2 minutes
         \item Sending single packet at 3 paths gives lot of noise and graph is difficult to make any inferences. Hence we choose 2 packets at 3 paths to get most optimal solution
         \item Time complexity is further reduced by adding timeout of 1 seconds to reduce time spent in waiting for servers to respond that are not responding. The maximum RTT observed was less than 500ms hence giving 1 second timeout safely reduces the time by a significant factor.
     \end{enumerate}
