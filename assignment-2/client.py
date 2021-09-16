@@ -1,16 +1,39 @@
-# socket based chat application
-import socket
-
-# 2 sockets to send and receive messages
-# 1 socket for the server to send messages to the client
-# 1 socket for the client to send messages to the server
-
-# client to server registration for sending messages
-def register(sock, username):
-    data='REGISTER TOSEND'+username+'\n \n'
+import time, socket, sys, threading
+# socket creation
+socket_server_send = socket.socket()
+socket_server_receive = socket.socket()
+username=""
+dashed_line="--------------------"
+class bcolors:
+    HEADER = '\033[95m'     # pink
+    received = '\033[94m'   # Blue
+    sent = '\033[92m'       # green
+    time = '\033[93m'  # yellow
+    error = '\033[91m'      # red
+    ENDC = '\033[0m'
+# print coloured
+def print_colored(text,type):
+    if type=='received':
+        print(bcolors.received+text+bcolors.ENDC)
+    elif type=='sent':
+        print(bcolors.sent+text+bcolors.ENDC)
+    elif type=='broadcast':
+        print(bcolors.broadcast+text+bcolors.ENDC)
+    elif type=='error':
+        print(bcolors.error+text+bcolors.ENDC)
+    elif type=='HEADER':
+        print(bcolors.HEADER+text+bcolors.ENDC)
+# add to logs
+def print_logs(username,message):
+    with open('logs.txt', 'a') as f:
+        f.write(time.strftime("%d/%m/%Y %H:%M:%S")+"\t"+username+"\t"+message+"\n")
+# print current time
+def print_time():
+    print(time.strftime("%d/%m/%Y %H:%M:%S"))
+def register_to_send(sock, username):
+    data='REGISTER TOSEND '+username+'\n\n'
     sock.send(data.encode())
 
-# Server to client, if username is well formed
 def well_formed_username(username):
     if ' ' in username:
         return False
@@ -18,109 +41,158 @@ def well_formed_username(username):
         return True
 
 #  Client to server registration, for receiving messages
-def register_client(sock, username):
-    data='REGISTER TORECV'+username+'\n \n'
+def register_to_receive(sock, username):
+    data='REGISTER TORECV '+username+'\n\n'
     sock.send(data.encode())
 
-# Server to client, if username is well formed
-
-
-# Server to client message in response to any communication until registration is complete
-
+def get_ack(response):
+    end=response.find('\n\n')
+    if response[0:9]=='ERROR 100':
+        return "error", ""
+    if response[0:10] == 'REGISTERED':
+        return "success", response[18:end]
+    else:
+        return "error",""
+def get_ack_sent(response):
+    if response[0:9]=='ERROR 102':
+        return "unable to send"
+    if response[0:9] == 'ERROR 103':
+        return "header incomplete"
+    if response[0:4] == 'SEND':
+        return "sent"
+def get_rec_msg(in_line):
+    space=in_line.find(' ')
+    if len(in_line)<4 or in_line[0]!='@' or space==-1 or space==len(in_line)-1 or in_line[space+1]=='\n':
+        return False,"",""
+    recepient = in_line[1:space]
+    message = in_line[space+1:]
+    return True,recepient, message
 
 # Client to server message
 def send_message(sock, username,message):
     data="SEND "+username+"\n"+"Content-length: "+str(len(message))+"\n\n"+message
-    sock.send(data.encode())
-
-# server to client acknowledge
-def ack(sock,status):
-    if status=="DELEIVERED":
-        data="DELEIVERED"
-    elif status=="ERROR102":
-        data="ERROR102 Unable to send\n\n"
-    elif status=="ERROR103":
-        data="ERROR103 Header incomplete\n\n"
+    # print("sending data:",data)
     sock.send(data.encode())
 
 
-# message forwarding at server
-def forward_message(sock,username,message):
-    data="FORWARD "+username+"\n"+"Content-length: "+str(len(message))+"\n\n"+message
+def get_forwarded_message(sock ,response):
+    if response[0:7]=='FORWARD':
+        isformated,sender,message=is_formated(response)
+        if isformated:
+            # send ack
+            send_received_ack(sock,sender)
+            return "sent",message,sender
+    send_error103(sock)
+    return "error", "",""
+
+def send_error103(sock):
+    data='ERROR 103 Header Incomplete\n\n'
     sock.send(data.encode())
+def send_received_ack(sock,username):
+    data='RECEIVED '+username+'\n\n'
+    sock.send(data.encode())
+def is_formated(response):
+    if response[0:7]=='FORWARD':
+        space=response.find(' ')
+        end=response.find('\n')
+        if space==-1:
+            return False,"",""
+        sender=response[space+1:end]
+        len_message=response[response.find('Content-length:')+16:response.find('\n\n')]
+        if not len_message.isdigit():
+            return False,"",""
+        message=response[response.find('\n\n')+2:response.find('\n\n')+int(len_message)+2]
+        return True, sender, message
+    else:
+        return False,"",""
+
+def send_message_thread(socket_server_send, username):
+# 1.2 send message
+    while(True):
+        # print("Receipient: ",end="")
+        in_line = input()
+        ok,recipient, message = get_rec_msg(in_line)
+        if not ok:
+            print_colored("Message format is wrong. Please retype in correct format", "error")
+            print_time()
+            print(dashed_line)
+            continue
+        send_message(socket_server_send, recipient, message)
+
+        # receive acknowledgement from server
+        sent=get_ack_sent(socket_server_send.recv(1024).decode())
+        if sent != 'sent':
+            # print(sent)
+            print_colored("Unable to send message", "error")
+            print_time()
+            print(dashed_line)
+            continue
+        if(recipient!=username):
+            print_time()
+            print(dashed_line)
+
+def receive_message_thread(socket_server_receive, username):
+    # 1.3 receive message
+    while(True):
+        # TODO:make this continous print green tick
+        # print("listening for message",end='\r')
+        
+        response=socket_server_receive.recv(1024).decode()
+        # print("Got message")
+        ack,msg,sender=get_forwarded_message(socket_server_receive,response)
+        if ack=="error":
+            print_colored("Error in receiving message", "error")
+            print_time()
+            print(dashed_line)
+            continue
+        print_colored("Sender: @"+sender+"\n---Message---\n"+msg, "received")
+        print_time()
+        print(dashed_line)
 
 
-# main
-def main():
-    # get username
-    username = input("Enter your username: ")
-    # get server ip
-    host = input("Enter the server ip: ")
 
-    # create socket
-    send_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    recv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_host = socket.gethostname()
+ip = socket.gethostbyname(server_host)
+s_port = 8080
+print_colored('This is your IP address: '+ip,"HEADER")
+# server_host = input('Enter friend\'s IP address:')
+server_host = "192.168.137.1"
+socket_server_send.connect((server_host, s_port))
+socket_server_receive.connect((server_host, s_port))
 
-    # connect to server
-    send_socket.connect((host, 9999))
-    recv_socket.connect((host, 9999))
-    # register client
-    register_client(send_socket, username)
+while(True):
+    print_colored("Enter your Username:","HEADER")
+    username = input()
+    # register_username(username, socket_server_send, socket_server_receive)
+    # print("sending message for register")
+    register_to_send(socket_server_send, username)
+    register_to_receive(socket_server_receive, username)
+    # print("message sent for registration")
+    # receive acknowledgement from server
+    ack_tosend,ack_username_tosend=get_ack(socket_server_send.recv(1024).decode())
+    ack_torecv,ack_username_toreceive=get_ack(socket_server_receive.recv(1024).decode())
+    # print("Registration ack to send",ack_tosend,ack_username_tosend)
+    # print("Registration ack to recv",ack_torecv,ack_username_toreceive)
+    if ack_tosend!= "success" or ack_torecv!= "success" or ack_username_tosend!=username or ack_username_toreceive!=username:
+        print_colored("Error in registration... Try again", "error")
+        continue
+    break
+print_colored("Registration Successful", "HEADER")
+# create thread for sending and receiving messages
+thread_send = threading.Thread(target=send_message_thread, args=(socket_server_send, username,))
+thread_receive = threading.Thread(target=receive_message_thread, args=(socket_server_receive, username,))
+thread_send.daemon = True
+thread_receive.daemon = True
+thread_send.start()
+thread_receive.start()
+
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    print_colored(dashed_line+"\nClosing server... Bye...\n"+dashed_line+"\n", "error")
+    socket_server_send.close()
+    socket_server_receive.close()
+
     
-
-    # server to client registration
-    while True:
-        client, addr = server.accept()
-        data = client.recv(1024)
-        data = data.decode()
-        if data[:4] == 'REGISTER':
-            username = data[5:]
-            if well_formed_username(username):
-                register(client, username)
-                register_client(client, username)
-                print("Registered: "+username)
-                break
-            else:
-                print("Error: Invalid username")
-        else:
-            print("Error: Invalid request")
-
-    # client to server registration
-    while True:
-        client, addr = server.accept()
-        data = client.recv(1024)
-        data = data.decode()
-        if data[:4] == 'REGISTER':
-            username = data[5:]
-            if well_formed_username(username):
-                register_client(client, username)
-                print("Registered: "+username)
-                break
-            else:
-                print("Error: Invalid username")
-        else:
-            print("Error: Invalid request")
-
-    # server to client registration
-    while True:
-        client, addr = server.accept()
-        data = client.recv(1024)
-        data = data.decode()
-        if data[:4] == 'REGISTER':
-            username = data[5:]
-            if well_formed_username(username):
-                register(client, username)
-                print("Registered: "+username)
-                break
-            else:
-                print("Error: Invalid username")
-        else:
-            print("Error: Invalid request")
-
-    # server to client registration
-    while True:
-        client, addr = server.accept()
-        data = client.recv(1024)
-        data = data.decode()
-
-main()
+    sys.exit(0)
