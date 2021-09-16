@@ -45,15 +45,75 @@ def register_user(first_response,conn):
             return "ERROR100",""
     conn.sendall('ERROR 101 No user registered\n\n'.encode())
     return "ERROR101",""
+# check headers corresponding to table 2
+def check_msg_header(msg):
+    rec=""
+    msg_len=0
+    msg_content=""
+    if(len(msg)<20):
+        return False,rec,msg_len,msg_content
+    if(msg[0:4]!="SEND"):
+        return False,rec,msg_len,msg_content
+    back_pos=msg.find("\n")
+    d_back_pos=msg.find("\n\n")
+    cont_len_pos=msg.find("Content-length:")
+    if( cont_len_pos<7 or back_pos<6 or d_back_pos<23):
+        return False,rec,msg_len,msg_content
+    rec=msg[5:back_pos]
+    msg_len=msg[cont_len_pos+16:d_back_pos]
+    msg_content=msg[d_back_pos+2:]
+    if((not msg_len.isdigit() )or int(msg_len)!=len(msg_content)):
+        print("message length is not given length. Given length is:",msg_len,len(msg_content))
+        return False,rec,msg_len,msg_content
+    return True,rec,int(msg_len),msg_content
+def forward_to_recp(msg_response,conn,sender_username):
+    check,receipient,msg_length,msg_content=check_msg_header(msg_response)
+    if(not check):
+        return "ERROR103"
+    print("message received is formatted.")
+    if(receipient not in hash_table):
+        return "ERROR102"
+    if(msg_length!=len(msg_content)):
+        print("message length not equal to given length")
+        return "ERROR103" 
+    print("Forwarding the message")
+    data="FORWARD "+sender_username+"\nContent-length: "+str(msg_length)+"\n\n"+msg_content
+    receipient_conn_send=hash_table[receipient][1]
+    receipient_conn_send.sendall(data.encode())
+    print("Message Forwarded waiting for confirmation")
+    receipient_conn_recv=hash_table[receipient][0]
+    receipient_ack=receipient_conn_recv.recv(1024).decode()
+    print("Confirmation received")
+    if(receipient_ack[0:8]=="RECEIVED"):
+        return "SEND"
+    elif (receipient_ack[0:9]=="ERROR 103"):
+        return "ERROR103"
+    else:
+        return "ERROR102"
+
+def send_error102(conn):
+    data="ERROR 102 Unable to send\n\n"
+    conn.sendall(data.encode())
+def send_error103(conn):
+    data='ERROR 103 Header Incomplete\n\n'
+    conn.send(data.encode())
+def send_delivered(conn,username):
+    data="SEND "+username+"\n\n"
+    conn.sendall(data.encode())
 
 def client_thread(conn, add):
     first_response = (conn.recv(1024)).decode() 
     op_code,username=register_user(first_response,conn)
     while True:
         msg_response = (conn.recv(1024)).decode()
-        
-    print(username + ' has connected.')
-
+        ack=forward_to_recp(msg_response,conn,username)
+        if(ack=="ERROR102"):
+            send_error102(conn)
+        if(ack=="ERROR103"):
+            send_error103(conn)
+        if(ack=="SEND"):
+            send_delivered(conn,username)
+        print(ack)
 
 # create socket
 new_socket = socket.socket()

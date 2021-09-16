@@ -42,6 +42,7 @@ def get_rec_msg(in_line):
 # Client to server message
 def send_message(sock, username,message):
     data="SEND "+username+"\n"+"Content-length: "+str(len(message))+"\n\n"+message
+    print("sending data:",data)
     sock.send(data.encode())
 
 
@@ -82,7 +83,7 @@ def is_formated(response):
     else:
         return False,"",""
 
-def send_message_thread(sock, username):
+def send_message_thread(socket_server_send, username):
 # 1.2 send message
     while(True):
         in_line = input('Enter your message: ')
@@ -97,11 +98,11 @@ def send_message_thread(sock, username):
             print(sent)
             continue
 
-def receive_message_thread(sock, username):
+def receive_message_thread(socket_server_receive, username):
     # 1.3 receive message
     while(True):
         response=socket_server_receive.recv(1024).decode()
-        ack,msg=get_forwarded_message(response)
+        ack,msg=get_forwarded_message(socket_server_receive,response)
         if ack=="error":
             print("Error in receiving message")
             continue
