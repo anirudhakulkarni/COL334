@@ -6,7 +6,7 @@
 
 1. At client - 2 sockets and 1 thread per socket - thread functions are different 
 2. At server - 2 sockets and 1 thread per socket per client - thread functions are same to handle multiple requests
-3. Username - at least size of 3 at most 10. Alphanumeric only. If a client disconnects he can rejoin and take the same username again - (what if someone else registers by same username?)
+3. Username - at least size of 3 at most 10. Alphanumeric only. usernames are unique. No clashes.
 4. Broadcasting - stop and wait - send individually - if all succeed then sender receives confirmation
 5. Max buffer size - ?
 6. No space in \n\n
@@ -32,26 +32,8 @@
 3. ERROR102 - Unable to send
 4. ERROR103 - Header incomplete - closes connection
 
-- users to send plain text messages
-- single server and multiple clients
-- tcp sockets
-- 
+### References:
 
-TODO:
-- server - registration
-- client - registration
-- client - send message
-- server - forward message
+- Most comprehensive tutorial on socket programming : https://medium.com/iothincvit/socket-programming-f7f476df4bc5
+- https://users.encs.concordia.ca/~glitho/F09_Socket.pdf
 
-For other errors such as ERROR 103, we mentioned in the assignment statement that we need to close the socket connection.
-
-case sensitive usernames a-z,A-Z,0-9
-
- we would need to use some thread safe hash table implementation and also maintain a per socket lock so that two threads cannot send messages to the same socket at the same time
-
- you can choose a max-size and add it to your report.
-
- https://piazza.com/class/ksadh5klx166sx?cid=39_f19
-
- Most comprehensive tutorial on socket programming : https://medium.com/iothincvit/socket-programming-f7f476df4bc5
- https://users.encs.concordia.ca/~glitho/F09_Socket.pdf

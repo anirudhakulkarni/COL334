@@ -63,8 +63,10 @@ def get_ack_sent(response):
         return "sent"
 def get_rec_msg(in_line):
     space=in_line.find(' ')
-    if len(in_line)<4 or in_line[0]!='@' or space==-1 or space==len(in_line)-1 or in_line[space+1]=='\n':
+    # print(len(in_line))
+    if len(in_line)<4 or len(in_line)>400 or in_line[0]!='@' or space==-1 or space==len(in_line)-1 or in_line[space+1]=='\n':
         return False,"",""
+    # print("FALINGFS")
     recepient = in_line[1:space]
     message = in_line[space+1:]
     return True,recepient, message
@@ -77,6 +79,10 @@ def send_message(sock, username,message):
 
 
 def get_forwarded_message(sock ,response):
+    # test code for evaluation starts
+    # send_error103(sock)
+    # return "error103", "",""
+    # test code for evaluation ends
     if response[0:7]=='FORWARD':
         isformated,sender,message=is_formated(response)
         if isformated:
@@ -116,7 +122,8 @@ def send_message_thread(socket_server_send, username):
         # print("Receipient: ",end="")
         in_line = input()
         ok,recipient, message = get_rec_msg(in_line)
-        ok=True
+        # for evaluation
+        # ok=True
         if not ok:
             print_colored("Message format is wrong. Please retype in correct format", "error")
             print_time()
@@ -125,7 +132,7 @@ def send_message_thread(socket_server_send, username):
         send_message(socket_server_send, recipient, message)
 
         # receive acknowledgement from server
-        sent=get_ack_sent(socket_server_send.recv(1024).decode())
+        sent=get_ack_sent(socket_server_send.recv(512).decode())
         if sent == "unable to send":
             # print(sent)
             print_colored("Unable to send message", "error")
@@ -154,7 +161,7 @@ def receive_message_thread(socket_server_receive, username):
         # print("listening for message",end='\r')
         if exit_now:
             return
-        response=socket_server_receive.recv(1024).decode()
+        response=socket_server_receive.recv(512).decode()
         # print("Got message")
         ack,msg,sender=get_forwarded_message(socket_server_receive,response)
         # if server sends error. Implies connection is broken. so exit
@@ -176,8 +183,9 @@ def receive_message_thread(socket_server_receive, username):
 server_host = socket.gethostname()
 ip = socket.gethostbyname(server_host)
 s_port = 8080
+print_colored('Welcome to the chat Application!\n1. Limit your messages to 400 characters\n2. Username can be alphanumeric with atleast 3 chars to at most 10 chars\n4. Do not repeat usernames\n','sent')
 print_colored('This is your IP address: '+ip,"HEADER")
-# server_host = input('Enter friend\'s IP address:')
+# server_host = input('Enter server\'s IP address:')
 server_host = "192.168.137.1"
 socket_server_send.connect((server_host, s_port))
 socket_server_receive.connect((server_host, s_port))
@@ -191,8 +199,8 @@ while(True):
     register_to_receive(socket_server_receive, username)
     # print("message sent for registration")
     # receive acknowledgement from server
-    ack_tosend,ack_username_tosend=get_ack(socket_server_send.recv(1024).decode())
-    ack_torecv,ack_username_toreceive=get_ack(socket_server_receive.recv(1024).decode())
+    ack_tosend,ack_username_tosend=get_ack(socket_server_send.recv(512).decode())
+    ack_torecv,ack_username_toreceive=get_ack(socket_server_receive.recv(512).decode())
     # print("Registration ack to send",ack_tosend,ack_username_tosend)
     # print("Registration ack to recv",ack_torecv,ack_username_toreceive)
     if ack_tosend!= "success" or ack_torecv!= "success" or ack_username_tosend!=username or ack_username_toreceive!=username:

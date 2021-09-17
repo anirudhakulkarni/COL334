@@ -5,11 +5,10 @@ from collections import defaultdict
 # connection list. 0-> client sends to you, 1-> you send to client
 hash_table = defaultdict(list)
 # message queue
-message_queue=defaultdict(list)
-
+# is_alive=defaultdict(lambda: [False])
 def isvalid_username(username):
     # return True
-    if username=="ALL":
+    if username=="ALL" :
         return False
     if(len(username)>=3 and len(username)<=10):
         for i in username:
@@ -30,14 +29,23 @@ def register_user(first_response,conn):
         username=first_response[16:end]         
         if (isvalid_username(username)):
             # print(username,"THIS is username")
+            # username already taken and is alive
+            # if(is_alive[username][0]):
+            #     conn.sendall('ERROR 100 Malformed username\n\n'.encode())
+            #     return "ERROR100",""
             if(hash_table[username]==[]):
                 hash_table[username]+=[conn]
+                # is_alive[username]=[True]
             elif len(hash_table[username])==1:
                 temp=hash_table[username][0]
                 hash_table[username][0]=conn
                 hash_table[username]+=[temp]
+                # is_alive[username]=[True]
             else:
+                conn.sendall('ERROR 100 Malformed username\n\n'.encode())
+                return "ERROR100",""
                 hash_table[username]=[conn]
+                # is_alive[username]=[True]
             data="REGISTERED TOSEND "+username+"\n\n"
             conn.sendall(data.encode())
             return "REGISTER_TOSEND",username
@@ -50,6 +58,7 @@ def register_user(first_response,conn):
             if(len(hash_table[username])==2):
                 hash_table[username]=[]
             hash_table[username]+=[conn]
+            # is_alive[username]=[True]
             # print(hash_table)
             data="REGISTERED TORECV "+username+"\n\n"
             conn.sendall(data.encode())
@@ -80,6 +89,8 @@ def check_msg_header(msg):
         print("message length is not given length. Given length is:",msg_len,len(msg_content))
         return False,rec,msg_len,msg_content
     return True,rec,int(msg_len),msg_content
+
+
 def forward_to_recp(msg_response,sender_username):
     # sanity check for incoming message
     check,receipient,msg_length,msg_content=check_msg_header(msg_response)
@@ -101,7 +112,7 @@ def forward_to_recp(msg_response,sender_username):
                 send_to_clinet_socket=hash_table[rec_username][1]
                 send_to_clinet_socket.sendall(data.encode())
                 print("Message Forwarded waiting for confirmation")
-                receipient_ack=send_to_clinet_socket.recv(1024).decode()
+                receipient_ack=send_to_clinet_socket.recv(512).decode()
                 print("Confirmation received")
                 if(receipient_ack[0:8]!="RECEIVED"):
                     return "ERROR102"
@@ -111,7 +122,7 @@ def forward_to_recp(msg_response,sender_username):
         try:
             send_to_clinet_socket.sendall(data.encode())
             print("Message Forwarded waiting for confirmation")
-            receipient_ack=send_to_clinet_socket.recv(1024).decode()
+            receipient_ack=send_to_clinet_socket.recv(512).decode()
         except:
             return "ERROR102"
 
@@ -119,7 +130,8 @@ def forward_to_recp(msg_response,sender_username):
         if(receipient_ack[0:8]=="RECEIVED"):
             return "SEND"
         elif (receipient_ack[0:9]=="ERROR 103"):
-            return "ERROR103"
+            # this means that recipient link is not working. Issue is with server to receiver. Hence its better to return unable to send than header incomplete
+            return "ERROR102"
         else:
             return "ERROR102"
 
@@ -134,16 +146,17 @@ def send_delivered(conn,username):
     conn.sendall(data.encode())
 
 def client_thread(conn, add):
-    first_response = (conn.recv(1024)).decode() 
+    first_response = (conn.recv(512)).decode() 
     op_code,username=register_user(first_response,conn)
     # client is sending in this thread
     if op_code=="REGISTER_TOSEND":
         while True:
             # wait to receive to send message
             try:
-                msg_response = (conn.recv(1024)).decode()
+                msg_response = (conn.recv(512)).decode()
             except:
                 print(username+" disconnected")
+                # is_alive[username]=False
                 return
             # parse and if correct send message on other socket else ?
             # wait for confirmation from client2 (receiver)
