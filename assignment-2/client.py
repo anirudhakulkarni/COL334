@@ -4,6 +4,7 @@ socket_server_send = socket.socket()
 socket_server_receive = socket.socket()
 username=""
 dashed_line="--------------------"
+exit_now=False
 class bcolors:
     HEADER = '\033[95m'     # pink
     received = '\033[94m'   # Blue
@@ -83,7 +84,7 @@ def get_forwarded_message(sock ,response):
             send_received_ack(sock,sender)
             return "sent",message,sender
     send_error103(sock)
-    return "error", "",""
+    return "error103", "",""
 
 def send_error103(sock):
     data='ERROR 103 Header Incomplete\n\n'
@@ -108,10 +109,14 @@ def is_formated(response):
 
 def send_message_thread(socket_server_send, username):
 # 1.2 send message
+    global exit_now
     while(True):
+        if exit_now:
+            return
         # print("Receipient: ",end="")
         in_line = input()
         ok,recipient, message = get_rec_msg(in_line)
+        ok=True
         if not ok:
             print_colored("Message format is wrong. Please retype in correct format", "error")
             print_time()
@@ -121,30 +126,47 @@ def send_message_thread(socket_server_send, username):
 
         # receive acknowledgement from server
         sent=get_ack_sent(socket_server_send.recv(1024).decode())
-        if sent != 'sent':
+        if sent == "unable to send":
             # print(sent)
             print_colored("Unable to send message", "error")
             print_time()
             print(dashed_line)
             continue
+        # header incomplete. Connection is unstable. hence close connection
+        if sent == "header incomplete":
+            print_colored("Header incomplete. Ending connection. Please reregister.", "error")
+            print_time()
+            print(dashed_line)
+            socket_server_send.close()
+            socket_server_receive.close()
+            exit_now=True
+            sys.exit()
+            
         if(recipient!=username):
             print_time()
             print(dashed_line)
 
 def receive_message_thread(socket_server_receive, username):
     # 1.3 receive message
+    global exit_now
     while(True):
         # TODO:make this continous print green tick
         # print("listening for message",end='\r')
-        
+        if exit_now:
+            return
         response=socket_server_receive.recv(1024).decode()
         # print("Got message")
         ack,msg,sender=get_forwarded_message(socket_server_receive,response)
-        if ack=="error":
-            print_colored("Error in receiving message", "error")
+        # if server sends error. Implies connection is broken. so exit
+        if ack!="sent":
+            print_colored("Error in receiving message. Closing connection", "error")
             print_time()
             print(dashed_line)
-            continue
+            socket_server_receive.close()
+            socket_server_send.close()
+            exit_now=True
+            sys.exit()
+
         print_colored("Sender: @"+sender+"\n---Message---\n"+msg, "received")
         print_time()
         print(dashed_line)
