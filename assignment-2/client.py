@@ -185,8 +185,8 @@ ip = socket.gethostbyname(server_host)
 s_port = 8080
 print_colored('Welcome to the chat Application!\n1. Limit your messages to 400 characters\n2. Username can be alphanumeric with atleast 3 chars to at most 10 chars\n4. Do not repeat usernames\n','sent')
 print_colored('This is your IP address: '+ip,"HEADER")
-# server_host = input('Enter server\'s IP address:')
-server_host = "192.168.137.1"
+server_host = input('Enter server\'s IP address:')
+# server_host = "192.168.137.1"
 socket_server_send.connect((server_host, s_port))
 socket_server_receive.connect((server_host, s_port))
 
