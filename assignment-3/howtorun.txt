@@ -1,0 +1,21 @@
+1.
+
+./waf --run "scratch/First --type=NewReno" 
+./waf shell
+cd build/scratch
+cp First ../../
+cd ../../
+./First --type=NewReno
+./First --type=HighSpeed
+./First --type=Vegas
+./First --type=Veno
+gnuplot congestion.plt
+
+2.
+cd build/scratch
+cp Second ../../
+cd ../../
+./Second
+
+3. 
+wscript change
