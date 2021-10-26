@@ -6,5 +6,5 @@ list=system('ls -1B q2-b*.cwnd')
 do for [file in list]{
   set title "Congestion window size vs time graph for ".file
   set output file.".png"
-  plot file using 1:2 with linespoints title "Old Congestion", file using 1:3 with linespoints title "New Congestion"
+  plot file using 1:3 with linespoints title "New Congestion"
 }

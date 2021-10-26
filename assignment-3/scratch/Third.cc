@@ -20,11 +20,10 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
-#include "ns3/netanim-module.h"
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("SixthScriptExample");
-
+int total_packet_loss = 0;
 // ===========================================================================
 //
 //         node 0                 node 1
@@ -180,6 +179,7 @@ static void
 RxDrop(Ptr<PcapFileWrapper> file, Ptr<const Packet> p)
 {
     NS_LOG_UNCOND("RxDrop at " << Simulator::Now().GetSeconds());
+    total_packet_loss++;
     file->Write(Simulator::Now(), p);
 }
 
@@ -221,9 +221,6 @@ void solve_a(std::string conf_num)
     NS_LOG_UNCOND("Assigned address =" << n13interfaces.GetAddress(1) << "\n");
     NS_LOG_UNCOND("Assigned address =" << n23interfaces.GetAddress(0) << "\n");
     NS_LOG_UNCOND("Assigned address =" << n23interfaces.GetAddress(1) << "\n");
-    // Ipv4InterfaceContainer n23interfaces = address.Assign(n23devices.Get(0));
-    // NS_LOG_UNCOND("Assigned address =" << n23interfaces.GetAddress(0) << "\n");
-    // NS_LOG_UNCOND("Assigned address =" << n23interfaces.GetAddress(1) << "\n");
 
     uint16_t sinkPort = 8080;
     Address sinkAddress1(InetSocketAddress(n13interfaces.GetAddress(1), sinkPort));
@@ -232,6 +229,7 @@ void solve_a(std::string conf_num)
     ApplicationContainer sinkApp = sinkHelper.Install(n13.Get(1));
     sinkApp.Start(Seconds(0.0));
     sinkApp.Stop(Seconds(30.0));
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue(TcpNewReno::GetTypeId()));
 
     if (conf_num == "3")
     {
@@ -274,31 +272,28 @@ void solve_a(std::string conf_num)
 
     app1->SetStartTime(Seconds(1.0));
     app1->SetStopTime(Seconds(20.0));
-    app3->SetStartTime(Seconds(15.0));
-    app3->SetStopTime(Seconds(30.0));
     app2->SetStartTime(Seconds(5.0));
     app2->SetStopTime(Seconds(25.0));
+    app3->SetStartTime(Seconds(15.0));
+    app3->SetStopTime(Seconds(30.0));
 
     AsciiTraceHelper asciiTraceHelper;
     Ptr<OutputStreamWrapper> stream1 = asciiTraceHelper.CreateFileStream("q3/q3-1-conf" + conf_num + ".cwnd");
     Ptr<OutputStreamWrapper> stream2 = asciiTraceHelper.CreateFileStream("q3/q3-2-conf" + conf_num + ".cwnd");
     Ptr<OutputStreamWrapper> stream3 = asciiTraceHelper.CreateFileStream("q3/q3-3-conf" + conf_num + ".cwnd");
     PcapHelper pcapHelper;
-    Ptr<PcapFileWrapper> file1 = pcapHelper.CreateFile("q3/q3-1-conf" + conf_num + ".pcap", std::ios::out, PcapHelper::DLT_PPP);
-    Ptr<PcapFileWrapper> file2 = pcapHelper.CreateFile("q3/q3-2-conf" + conf_num + ".pcap", std::ios::out, PcapHelper::DLT_PPP);
-    Ptr<PcapFileWrapper> file3 = pcapHelper.CreateFile("q3/q3-3-conf" + conf_num + ".pcap", std::ios::out, PcapHelper::DLT_PPP);
+    Ptr<PcapFileWrapper> file1 = pcapHelper.CreateFile("q3/q3-13-conf" + conf_num + ".pcap", std::ios::out, PcapHelper::DLT_PPP);
+    Ptr<PcapFileWrapper> file2 = pcapHelper.CreateFile("q3/q3-23-conf" + conf_num + ".pcap", std::ios::out, PcapHelper::DLT_PPP);
 
     ns3TcpSocket1->TraceConnectWithoutContext("CongestionWindow", MakeBoundCallback(&CwndChange, stream1));
     ns3TcpSocket2->TraceConnectWithoutContext("CongestionWindow", MakeBoundCallback(&CwndChange, stream2));
     ns3TcpSocket3->TraceConnectWithoutContext("CongestionWindow", MakeBoundCallback(&CwndChange, stream3));
-    ns3TcpSocket1->TraceConnectWithoutContext("Drop", MakeBoundCallback(&RxDrop, file1));
-    ns3TcpSocket2->TraceConnectWithoutContext("Drop", MakeBoundCallback(&RxDrop, file2));
-    ns3TcpSocket3->TraceConnectWithoutContext("Drop", MakeBoundCallback(&RxDrop, file3));
-    AnimationInterface anim("q3/test.xml");
+    // ns3TcpSocket1->TraceConnectWithoutContext("Drop", MakeBoundCallback(&RxDrop, file1));
+    // ns3TcpSocket2->TraceConnectWithoutContext("Drop", MakeBoundCallback(&RxDrop, file2));
+    // ns3TcpSocket3->TraceConnectWithoutContext("Drop", MakeBoundCallback(&RxDrop, file3));
+    n13devices.Get(1)->TraceConnectWithoutContext("PhyRxDrop", MakeBoundCallback(&RxDrop, file1));
+    n23devices.Get(1)->TraceConnectWithoutContext("PhyRxDrop", MakeBoundCallback(&RxDrop, file2));
 
-    anim.SetConstantPosition(n13.Get(0), 10.0, 10.0);
-    anim.SetConstantPosition(n23.Get(0), 10.0, 30.0);
-    anim.SetConstantPosition(n13.Get(1), 10.0, 50.0);
     Simulator::Stop(Seconds(50));
     Simulator::Run();
     NS_LOG_UNCOND("Assigned address =" << n13interfaces.GetAddress(0) << "\n");
@@ -307,6 +302,8 @@ void solve_a(std::string conf_num)
     NS_LOG_UNCOND("Assigned address =" << n23interfaces.GetAddress(1) << "\n");
 
     Simulator::Destroy();
+    NS_LOG_UNCOND("Total Packet Loss:");
+    NS_LOG_UNCOND(total_packet_loss);
 }
 
 int main(int argc, char *argv[])
@@ -318,4 +315,7 @@ int main(int argc, char *argv[])
     cmd.Parse(argc, argv);
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue(TcpNewReno::GetTypeId()));
     solve_a(conf_num);
+
+    // send command to shell
+    system("gnuplot q3/q3.plt");
 }

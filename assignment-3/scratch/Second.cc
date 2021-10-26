@@ -23,41 +23,12 @@
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("SixthScriptExample");
+// vector of total packet loss
+std::vector<int> total_packet_losses_a;
+std::vector<int> total_packet_losses_b;
 
-// ===========================================================================
-//
-//         node 0                 node 1
-//   +----------------+    +----------------+
-//   |    ns-3 TCP    |    |    ns-3 TCP    |
-//   +----------------+    +----------------+
-//   |    10.1.1.1    |    |    10.1.1.2    |
-//   +----------------+    +----------------+
-//   | point-to-point |    | point-to-point |
-//   +----------------+    +----------------+
-//           |                     |
-//           +---------------------+
-//                5 Mbps, 2 ms
-//
-//
-// We want to look at changes in the ns-3 TCP congestion window.  We need
-// to crank up a flow and hook the CongestionWindow attribute on the socket
-// of the sender.  Normally one would use an on-off application to generate a
-// flow, but this has a couple of problems.  First, the socket of the on-off
-// application is not created until Application Start time, so we wouldn't be
-// able to hook the socket (now) at configuration time.  Second, even if we
-// could arrange a call after start time, the socket is not public so we
-// couldn't get at it.
-//
-// So, we can cook up a simple version of the on-off application that does what
-// we want.  On the plus side we don't need all of the complexity of the on-off
-// application.  On the minus side, we don't have a helper, so we have to get
-// a little more involved in the details, but this is trivial.
-//
-// So first, we create a socket and do the trace connect on it; then we pass
-// this socket into the constructor of our simple application which we then
-// install in the source node.
-// ===========================================================================
-//
+int curr_packet_loss = 0;
+
 class MyApp : public Application
 {
 public:
@@ -79,7 +50,7 @@ private:
     void SendPacket(void);
 
     Ptr<Socket> m_socket;
-    Address m_peer; 
+    Address m_peer;
     uint32_t m_packetSize;
     uint32_t m_nPackets;
     DataRate m_dataRate;
@@ -179,11 +150,13 @@ static void
 RxDrop(Ptr<PcapFileWrapper> file, Ptr<const Packet> p)
 {
     NS_LOG_UNCOND("RxDrop at " << Simulator::Now().GetSeconds());
+    curr_packet_loss++;
     file->Write(Simulator::Now(), p);
 }
 
 void solve_a(std::string channelrate)
 {
+    curr_packet_loss = 0;
     NodeContainer nodes;
     nodes.Create(2);
 
@@ -231,10 +204,12 @@ void solve_a(std::string channelrate)
     Simulator::Stop(Seconds(50));
     Simulator::Run();
     Simulator::Destroy();
+    total_packet_losses_a.push_back(curr_packet_loss);
 }
 
 void solve_b(std::string apprate)
 {
+    curr_packet_loss = 0;
     NodeContainer nodes;
     nodes.Create(2);
 
@@ -282,6 +257,7 @@ void solve_b(std::string apprate)
     Simulator::Stop(Seconds(50));
     Simulator::Run();
     Simulator::Destroy();
+    total_packet_losses_b.push_back(curr_packet_loss);
 }
 int main(int argc, char *argv[])
 {
@@ -300,5 +276,19 @@ int main(int argc, char *argv[])
     {
         solve_b(rate);
     }
+    NS_LOG_UNCOND("Printing losses for a");
+    for (auto p : total_packet_losses_a)
+    {
+        NS_LOG_UNCOND(p);
+    }
+    NS_LOG_UNCOND("Printing losses for b");
+    for (auto p : total_packet_losses_b)
+    {
+        NS_LOG_UNCOND(p);
+    }
+    // send command to shell
+    system("gnuplot q2/q2-a.plt");
+    system("gnuplot q2/q2-b.plt");
+
     return 0;
 }

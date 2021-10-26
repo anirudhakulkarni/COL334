@@ -23,41 +23,8 @@
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("SixthScriptExample");
+int total_drops = 0;
 
-// ===========================================================================
-//
-//         node 0                 node 1
-//   +----------------+    +----------------+
-//   |    ns-3 TCP    |    |    ns-3 TCP    |
-//   +----------------+    +----------------+
-//   |    10.1.1.1    |    |    10.1.1.2    |
-//   +----------------+    +----------------+
-//   | point-to-point |    | point-to-point |
-//   +----------------+    +----------------+
-//           |                     |
-//           +---------------------+
-//                5 Mbps, 2 ms
-//
-//
-// We want to look at changes in the ns-3 TCP congestion window.  We need
-// to crank up a flow and hook the CongestionWindow attribute on the socket
-// of the sender.  Normally one would use an on-off application to generate a
-// flow, but this has a couple of problems.  First, the socket of the on-off
-// application is not created until Application Start time, so we wouldn't be
-// able to hook the socket (now) at configuration time.  Second, even if we
-// could arrange a call after start time, the socket is not public so we
-// couldn't get at it.
-//
-// So, we can cook up a simple version of the on-off application that does what
-// we want.  On the plus side we don't need all of the complexity of the on-off
-// application.  On the minus side, we don't have a helper, so we have to get
-// a little more involved in the details, but this is trivial.
-//
-// So first, we create a socket and do the trace connect on it; then we pass
-// this socket into the constructor of our simple application which we then
-// install in the source node.
-// ===========================================================================
-//
 class MyApp : public Application
 {
 public:
@@ -179,6 +146,7 @@ static void
 RxDrop(Ptr<PcapFileWrapper> file, Ptr<const Packet> p)
 {
     NS_LOG_UNCOND("RxDrop at " << Simulator::Now().GetSeconds());
+    total_drops++;
     file->Write(Simulator::Now(), p);
 }
 
@@ -188,7 +156,6 @@ int main(int argc, char *argv[])
     std::string type;
     cmd.AddValue("type", "Type of TCP congestion control", type);
     cmd.Parse(argc, argv);
-    // int queuesize = 10; // packets
     // TcpNewReno, TcpHighSpeed, TcpVeno, TcpVegas
     if (type == "NewReno")
     {
@@ -243,13 +210,13 @@ int main(int argc, char *argv[])
     PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), sinkPort));
     ApplicationContainer sinkApps = packetSinkHelper.Install(nodes.Get(1));
     sinkApps.Start(Seconds(1.));
-    sinkApps.Stop(Seconds(50.));
+    sinkApps.Stop(Seconds(30.));
 
     Ptr<Socket> ns3TcpSocket = Socket::CreateSocket(nodes.Get(0), TcpSocketFactory::GetTypeId());
 
     Ptr<MyApp> app = CreateObject<MyApp>();
     // parameter application datarate 1mbps, packet size 3000
-    app->Setup(ns3TcpSocket, sinkAddress, 3000, 2000, DataRate("1Mbps"));
+    app->Setup(ns3TcpSocket, sinkAddress, 3000, 100000, DataRate("1Mbps"));
     nodes.Get(0)->AddApplication(app);
     app->SetStartTime(Seconds(1.));
     app->SetStopTime(Seconds(30.));
@@ -284,6 +251,9 @@ int main(int argc, char *argv[])
     Simulator::Stop(Seconds(50));
     Simulator::Run();
     Simulator::Destroy();
-
+    NS_LOG_UNCOND("Total Packet Drops:");
+    NS_LOG_UNCOND(total_drops);
+    // send command to shell
+    system("gnuplot q1/q1.plt");
     return 0;
 }
